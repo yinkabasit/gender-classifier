@@ -1,10 +1,11 @@
 import requests
 from datetime import datetime, timezone
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 
-@api_view(['GET'])
+@csrf_exempt
+@require_http_methods(["GET"])
 def classify(request):
 
     # -----------------------------------------------
@@ -13,28 +14,31 @@ def classify(request):
     name = request.GET.get('name', None)
 
     # -----------------------------------------------
-    # STEP 2: Validate the input
+    # STEP 2: Validate — Missing or empty name → 400
     # -----------------------------------------------
-    if name is None or name.strip() == '':
-        return Response(
+    if name is None or str(name).strip() == '':
+        return JsonResponse(
             {
                 "status": "error",
                 "message": "Missing or empty name parameter"
             },
-            status=status.HTTP_400_BAD_REQUEST
+            status=400
         )
 
+    # -----------------------------------------------
+    # STEP 3: Validate — Non-string name → 422
+    # -----------------------------------------------
     if not isinstance(name, str):
-        return Response(
+        return JsonResponse(
             {
                 "status": "error",
                 "message": "Name must be a string"
             },
-            status=status.HTTP_422_UNPROCESSABLE_ENTITY
+            status=422
         )
 
     # -----------------------------------------------
-    # STEP 3: Call the Genderize API
+    # STEP 4: Call the Genderize API
     # -----------------------------------------------
     try:
         genderize_response = requests.get(
@@ -44,54 +48,52 @@ def classify(request):
         genderize_data = genderize_response.json()
 
     except requests.exceptions.Timeout:
-        return Response(
+        return JsonResponse(
             {
                 "status": "error",
                 "message": "Genderize API timed out"
             },
-            status=status.HTTP_502_BAD_GATEWAY
+            status=502
         )
 
     except requests.exceptions.RequestException:
-        return Response(
+        return JsonResponse(
             {
                 "status": "error",
                 "message": "Failed to reach Genderize API"
             },
-            status=status.HTTP_502_BAD_GATEWAY
+            status=502
         )
 
     # -----------------------------------------------
-    # STEP 4: Handle Genderize edge cases
+    # STEP 5: Handle edge cases — null gender or 0 count
     # -----------------------------------------------
     if genderize_data.get('gender') is None or genderize_data.get('count', 0) == 0:
-        return Response(
+        return JsonResponse(
             {
                 "status": "error",
                 "message": "No prediction available for the provided name"
             },
-            status=status.HTTP_200_OK
+            status=200
         )
 
     # -----------------------------------------------
-    # STEP 5: Extract and PROCESS the data 🆕
+    # STEP 6: Extract and process the data
     # -----------------------------------------------
-
-    # Extract raw values from Genderize response
     gender      = genderize_data['gender']
-    probability = genderize_data['probability']
-    sample_size = genderize_data['count']       # renamed from 'count'
+    probability = float(genderize_data['probability'])
+    sample_size = int(genderize_data['count'])
 
-    # Compute is_confident — BOTH conditions must be true
+    # Both conditions must be true
     is_confident = (probability >= 0.7) and (sample_size >= 100)
 
-    # Generate processed_at — current UTC time, auto-generated
+    # Current UTC time in ISO 8601
     processed_at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     # -----------------------------------------------
-    # STEP 6: Return the final formatted response 🆕
+    # STEP 7: Return final response
     # -----------------------------------------------
-    return Response({
+    response = JsonResponse({
         "status": "success",
         "data": {
             "name": name,
@@ -101,4 +103,9 @@ def classify(request):
             "is_confident": is_confident,
             "processed_at": processed_at
         }
-    }, status=status.HTTP_200_OK)
+    }, status=200)
+
+    # Manually set CORS header to be absolutely sure
+    response["Access-Control-Allow-Origin"] = "*"
+
+    return response
