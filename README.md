@@ -58,3 +58,7 @@ Invalid type (422):
 
 No prediction available (200):
 { "status": "error", "message": "No prediction available for the provided name" }
+
+## Live API URL
+
+<https://my-gender-classifier-production.up.railway.app/api/classify?name=James>
