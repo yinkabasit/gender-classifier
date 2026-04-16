@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-2i84(vob=g6+n!&g0m=or@qsn9f+@c1=lb-4=3wef!1^vggrd=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -122,3 +122,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+import os
+PORT = os.environ.get('PORT', 8000)
